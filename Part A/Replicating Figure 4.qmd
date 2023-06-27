@@ -1,0 +1,167 @@
+---
+title: "Part A exam: Reproducing Figure 4"
+student: "I-Hao Chen"
+format: html
+editor: visual
+---
+
+## Original Paper DOI
+
+<https://doi.org/10.1371/journal.pone.0122380>
+
+Article Source:[**Reconstructing the Migratory Behavior and Long-Term Survivorship of Juvenile Chinook Salmon under Contrasting Hydrologic Regimes**](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0122380 "Back to original article")
+
+Sturrock AM, Wikert JD, Heyne T, Mesick C, Hubbard AE, et al. (2015) Reconstructing the Migratory Behavior and Long-Term Survivorship of Juvenile Chinook Salmon under Contrasting Hydrologic Regimes. PLOS ONE 10(5): e0122380. <https://doi.org/10.1371/journal.pone.0122380>
+
+## Data Citation
+
+Sturrock, Anna M. et al. (2016), Data from: Reconstructing the migratory behavior and long-term survivorship of juvenile Chinook salmon under contrasting hydrologic regimes, Dryad, Dataset, <https://doi.org/10.5061/dryad.c56rk>
+
+## Replicating Figure 4
+
+```{r, warning=FALSE}
+library(checker)
+checker::chk_requirements("https://raw.githubusercontent.com/richardjtelford/Bio302/main/checker/bio302.yaml")
+library(tidyverse)
+library(here)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(readxl)
+library(ggpubr)
+library(fdrtool)
+library(ggfortify)
+library(scales)
+```
+
+You can add options to executable code like this
+
+```{r}
+path =here("Part A", "Daily_N_fry_parr smolt_2000 2003_DRYAD.xlsx")
+path
+
+daily_counts = read_excel(path)
+head(daily_counts)
+```
+
+```{r, warning=FALSE}
+# Add date column
+daily_counts = daily_counts %>%
+  mutate(
+    # For whatever reason indexing starts at 0, meaning Day 0 is the 01.01 of a year. Therefore -1 for the dates
+     date =  as.Date(Day - 1, origin = sprintf("%s-01-01", Year)),
+     `N_fry` = `N fry`,
+     `N_parr` = `N parr`,
+     `N_smolt` = `N smolt`,
+     # Converting units to metric ones
+     Flow = `Flow (CFS)` /35.313378,
+     temperature = (`Temperature (oF)` - 32) *5/9
+    )
+daily_counts
+
+# Super dumb method to rescale the second axis in the plots via calculating the scale towards 100.
+scale_factor_2000 = max(daily_counts[daily_counts$Year == "2000",]$temperature,  na.rm = TRUE)/95
+
+plot_2000 = ggplot(daily_counts[daily_counts$Year == "2000",], aes(x=date)) + 
+
+# All the graphs for the primary axis, NO LEGEND!
+geom_bar(aes(x = date, y = N_fry/1000), stat = "identity", position = "dodge", yaxis = "y1") +  
+geom_bar(aes(x = date, y = N_parr/1000), stat = "identity", position = "dodge", yaxis = "y1") +  
+geom_bar(aes(x = date, y = N_smolt/1000), stat = "identity", position = "dodge", yaxis = "y1") +  
+geom_line(aes(y=`Turbidity (NTU)`*10), color="#839d4e", size = 1, yaxis = "y1") +
+
+# Plot the line grpahs. We used https://imagecolorpicker.com/ to pick out the correct colour for the graphs from the paper Figure.
+geom_line(aes(y=`Flow`/scale_factor_2000), color="#959595", size = 1, yaxis = "y2") +
+geom_line(aes(y=`temperature`/scale_factor_2000), color="#e36805", size = 1, yaxis = "y2") +
+
+# Adding orange triangle to the plot for the first itme when 15 degreed are reached. Date manually scanned from the daily_counts
+geom_point(data = subset(daily_counts, date == as.Date("2000-04-05")), aes(y=75), shape = 25, size = 2, fill = "#e36805") +
+  
+# Adding secondary axis and put ylim.
+scale_y_continuous(
+    name = "Count (thousands) turbidity (NTU x 10)",
+    sec.axis = sec_axis(~.*scale_factor_2000, name = NULL), # Scale axis since we sclaes the values for the graphs using this axis.
+    limits = c(0, 450), # Set ylim for the primary axis
+    expand = c(0, 0) # Remove padding
+    ) +
+
+# x-axis date layout, The expand = c(0,0) makes that the plot does not show 7/1
+scale_x_date(labels = date_format("%m/1"), date_breaks = "1 month", expand = c(0,0)) +
+  
+# Deleting the legend
+theme(legend.position="none")
+
+# Deleting the background
+plot_2000 = plot_2000 + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+# Almost the same procedure for the year 2003
+
+scale_factor_2003 = max(daily_counts[daily_counts$Year == "2003",]$temperature, na.rm = TRUE)/75
+
+plot_2003 = ggplot(daily_counts[daily_counts$Year == "2003",], aes(x=date)) + 
+  
+# All the graphs for the primary axis, NO LEGEND!
+geom_bar(aes(x = date, y = N_fry/1000), stat = "identity", position = "dodge", yaxis = "y1") +  
+geom_bar(aes(x = date, y = N_parr/1000), stat = "identity", position = "dodge", yaxis = "y1") +  
+geom_bar(aes(x = date, y = N_smolt/1000), stat = "identity", position = "dodge", yaxis = "y1") +  
+geom_line(aes(y=`Turbidity (NTU)`*10), color="#839d4e", size = 1, yaxis = "y1") +
+
+# Plot the line grpahs. We used https://imagecolorpicker.com/ to pick out the correct colour for the graphs from the paper Figure.
+geom_line(aes(y=`Flow`/scale_factor_2003), color="#959595", size = 1, yaxis = "y2") +
+geom_line(aes(y=`temperature`/scale_factor_2003), color="#e36805", size = 1, yaxis = "y2") +
+
+# Adding orange triangle to the plot for the first itme when 15 degreed are reached.Date manually scanned from the daily_counts
+geom_point(data = subset(daily_counts, date == as.Date("2003-3-13")), aes(y=75), shape = 25, size = 2, fill = "#e36805") +
+
+# Adding secondary axis and put ylim
+scale_y_continuous(
+    name = NULL,
+    sec.axis = sec_axis(~.*scale_factor_2003, name = 
+                          expression(Flow~(m^3~s^-1)~temperature~(degree~C))), # Scale axis since we sclaes the values for the graphs using this axis.
+    limits = c(0, 450), # Set ylim for the primary axis
+    expand = c(0, 0))+ # Remove padding
+theme( axis.title.y.right = element_text( angle = 90))+
+# x-axis date layout, The expand = c(0,0) makes that the plot does not show 7/1
+scale_x_date(labels = date_format("%m/1"), date_breaks = "1 month", expand = c(0,0)) +
+  
+# Deleting the legend
+theme(legend.position="none")
+
+# Deleting the background
+plot_2003 = plot_2003 + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black"))
+
+# Plotting both plots together, move the labels a little bit
+ggarrange(plot_2000, plot_2003, 
+          labels = c("2000", "2003"), label.x = 0.15, ncol=2, nrow=1)
+
+```
+
+Q: Discuss how well you managed to reproduce the part of paper you were working on and what challenges you faced. If you looked at two papers discuss both.
+
+A: We were able to reproduce the Figure with the correct colours and scaling. We think the reproduction is somewhat decent, but the axis are not completely correct.
+
+Apparently, the authors of the paper managed to align both secondary y-axes so they could omit one of them, which we were not able to do. Therefore, we left the secondary y-axis labels for the left plot. Some smaller things are that the date in the bottom is doubled and not centered as in the original paper. Also the degree symbol is still tricky to show.
+
+Challenges were really scaling the two plots together, that took most of the time and still does not work. Another detail which one has to be careful about is that the raw data is in cfs for the flow and degree F for the temperature, both things one needs to convert to the metric units used in the Figure.
+
+Laying over bar charts and line charts was surprisingly easy, but a little tricky to get the mapping correct, since we have two plots with each 2 y-axes.
+
+Lastly, the second orange arrows position was guessed, since the first occurrence of a temperature greater than 15 degrees C was in april, but the original Figure shows clearly march.
+
+All in all, the Figure is reproducible.
+
+Q: Discuss what how well the original paper meets best practice for reproducibility, i.e. what should the authors have done to make their analysis more reproducible, and what they did well.
+
+A: The paper does meet a lot of the best practices for reproducibility for this Figure. While I cannot see how the second orange in the 2003 year plot was set, we were able to reproduce the Figures with all the bars and all the line plots, and in the same scale. The data provided was sufficient to make the plots, though we were not able to procure the environmental data for the from the sources the authors provided (<http://cdec.water.ca.gov/> and Caswell \[40\] in the paper).
+
+I personally think that the authors did the right choice to leave the data "untouched" in the sense that the flow and temperature values were in the original measurement unit. This makes the data more authentic for me at least.
+
+It would have been a blessing if the authors also provided the code they used for reproducibility so mistakes are easier to spot.
+
+We want to highlight that the data was quite orderly, which is not always a given either.
+
+Minus points are that the files are saved as excel sheets, this is not good in terms of the FAIR principles.
+
+Another thing I wished for was a README.txt or something alike for the whole dataset such that orientation becomes a little bit easier (I am aware that the authors added a README for the other data in the repository). The repository should also include a license file in the best case (not sure that is so canon as I think it is).
